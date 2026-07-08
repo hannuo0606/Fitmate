@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Fitmate - 训练打卡</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="css/training-record.css">
+</head>
+<body>
+    <main class="record-page">
+        <section class="record-hero">
+            <div class="container">
+                <div class="record-hero__content">
+                    <p class="record-kicker mb-2">Fitmate AI 健身教练</p>
+                    <h1 class="mb-3">训练打卡</h1>
+                    <p class="record-hero__text mb-0">完成训练后记录今天的内容、时长和感受，让每一次坚持都有迹可循。</p>
+                </div>
+            </div>
+        </section>
+
+        <section class="container record-main">
+            <div id="pageAlert" class="alert d-none" role="alert"></div>
+
+            <!-- 统计区：后端 stats 接口可用时会自动填充数字 -->
+            <div class="stats-grid mb-4" aria-label="训练打卡统计">
+                <div class="stat-card">
+                    <span class="stat-label">连续打卡</span>
+                    <strong id="streakDays">--</strong>
+                    <span class="stat-unit">天</span>
+                </div>
+                <div class="stat-card">
+                    <span class="stat-label">本周打卡</span>
+                    <strong id="weeklyCount">--</strong>
+                    <span class="stat-unit">次</span>
+                </div>
+                <div class="stat-card">
+                    <span class="stat-label">本月打卡</span>
+                    <strong id="monthlyCount">--</strong>
+                    <span class="stat-unit">次</span>
+                </div>
+                <div class="stat-card">
+                    <span class="stat-label">累计打卡</span>
+                    <strong id="totalCount">--</strong>
+                    <span class="stat-unit">次</span>
+                </div>
+            </div>
+
+            <div class="row g-4 align-items-start">
+                <div class="col-lg-5">
+                    <section class="record-panel">
+                        <div class="section-heading">
+                            <h2>提交训练记录</h2>
+                            <p>训练内容和时长为必填项。</p>
+                        </div>
+
+                        <!-- 打卡表单：字段名与后端 /api/record 接口保持一致 -->
+                        <form id="recordForm" novalidate>
+                            <div class="mb-3">
+                                <label for="trainingDate" class="form-label">训练日期</label>
+                                <input type="date" class="form-control" id="trainingDate" name="training_date">
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="trainingContent" class="form-label">训练内容</label>
+                                <textarea class="form-control" id="trainingContent" name="training_content" rows="4" placeholder="例如：胸背力量训练、跑步 5 公里、瑜伽拉伸" required></textarea>
+                                <div class="invalid-feedback">请填写训练内容。</div>
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="trainingDuration" class="form-label">训练时长（分钟）</label>
+                                <input type="number" class="form-control" id="trainingDuration" name="training_duration" min="1" step="1" placeholder="例如：45" required>
+                                <div class="invalid-feedback">训练时长必须大于 0。</div>
+                            </div>
+
+                            <div class="mb-4">
+                                <label for="trainingNote" class="form-label">训练感受或备注</label>
+                                <textarea class="form-control" id="trainingNote" name="note" rows="3" placeholder="例如：状态不错，深蹲重量比上周提高了"></textarea>
+                            </div>
+
+                            <button id="submitBtn" type="submit" class="btn btn-primary w-100">
+                                提交打卡
+                            </button>
+                        </form>
+                    </section>
+                </div>
+
+                <div class="col-lg-7">
+                    <section class="record-panel">
+                        <div class="section-heading section-heading--row">
+                            <div>
+                                <h2>最近训练记录</h2>
+                                <p id="historySummary">正在加载历史记录...</p>
+                            </div>
+                            <button id="refreshBtn" type="button" class="btn btn-outline-secondary btn-sm">刷新</button>
+                        </div>
+
+                        <div id="historyLoading" class="loading-box">
+                            <div class="spinner-border spinner-border-sm text-primary" role="status" aria-hidden="true"></div>
+                            <span>正在读取记录...</span>
+                        </div>
+
+                        <div id="emptyState" class="empty-state d-none">
+                            <h3 id="emptyTitle">还没有训练记录</h3>
+                            <p id="emptyText">完成第一次训练后，就可以在这里看到历史打卡。</p>
+                        </div>
+
+                        <div id="historyList" class="history-list" aria-live="polite"></div>
+                    </section>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <script src="js/training-record.js"></script>
+</body>
+</html>

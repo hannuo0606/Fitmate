@@ -1,0 +1,248 @@
+:root {
+    --fitmate-primary: #2563eb;
+    --fitmate-primary-dark: #1d4ed8;
+    --fitmate-green: #16a34a;
+    --fitmate-ink: #18212f;
+    --fitmate-muted: #667085;
+    --fitmate-line: #dde5f0;
+    --fitmate-bg: #f5f7fb;
+    --fitmate-panel: #ffffff;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    min-height: 100vh;
+    color: var(--fitmate-ink);
+    background: var(--fitmate-bg);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", sans-serif;
+}
+
+.record-page {
+    min-height: 100vh;
+}
+
+.record-hero {
+    color: #ffffff;
+    background: linear-gradient(135deg, #1b4fd8 0%, #0f8a62 100%);
+}
+
+.record-hero__content {
+    min-height: 220px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 34px 0 44px;
+}
+
+.record-kicker {
+    font-size: 0.95rem;
+    font-weight: 700;
+}
+
+.record-hero h1 {
+    font-size: clamp(2rem, 4vw, 3.5rem);
+    font-weight: 800;
+}
+
+.record-hero__text {
+    max-width: 680px;
+    color: rgba(255, 255, 255, 0.88);
+    font-size: 1.08rem;
+}
+
+.record-main {
+    margin-top: -34px;
+    padding-bottom: 56px;
+}
+
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 14px;
+}
+
+.stat-card,
+.record-panel {
+    border: 1px solid var(--fitmate-line);
+    border-radius: 8px;
+    background: var(--fitmate-panel);
+    box-shadow: 0 14px 34px rgba(16, 24, 40, 0.08);
+}
+
+.stat-card {
+    min-height: 112px;
+    padding: 18px;
+}
+
+.stat-label,
+.stat-unit {
+    display: block;
+    color: var(--fitmate-muted);
+    font-size: 0.92rem;
+}
+
+.stat-card strong {
+    display: inline-block;
+    margin: 6px 6px 2px 0;
+    font-size: 2rem;
+    line-height: 1;
+}
+
+.record-panel {
+    padding: 24px;
+}
+
+.section-heading {
+    margin-bottom: 22px;
+}
+
+.section-heading--row {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    align-items: flex-start;
+}
+
+.section-heading h2 {
+    margin: 0 0 6px;
+    font-size: 1.28rem;
+    font-weight: 800;
+}
+
+.section-heading p {
+    margin: 0;
+    color: var(--fitmate-muted);
+}
+
+.form-label {
+    font-weight: 700;
+}
+
+.form-control {
+    border-color: #ccd6e3;
+}
+
+.form-control:focus {
+    border-color: var(--fitmate-primary);
+    box-shadow: 0 0 0 0.2rem rgba(37, 99, 235, 0.16);
+}
+
+.btn-primary {
+    --bs-btn-bg: var(--fitmate-primary);
+    --bs-btn-border-color: var(--fitmate-primary);
+    --bs-btn-hover-bg: var(--fitmate-primary-dark);
+    --bs-btn-hover-border-color: var(--fitmate-primary-dark);
+}
+
+.loading-box {
+    display: flex;
+    min-height: 92px;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    color: var(--fitmate-muted);
+    border: 1px dashed var(--fitmate-line);
+    border-radius: 8px;
+}
+
+.history-list {
+    display: grid;
+    gap: 12px;
+}
+
+.history-item {
+    border: 1px solid var(--fitmate-line);
+    border-radius: 8px;
+    padding: 16px;
+    background: #ffffff;
+}
+
+.history-item__top {
+    display: flex;
+    justify-content: space-between;
+    gap: 14px;
+    align-items: flex-start;
+    margin-bottom: 10px;
+}
+
+.history-date {
+    color: var(--fitmate-primary);
+    font-weight: 800;
+}
+
+.history-duration {
+    flex: 0 0 auto;
+    color: var(--fitmate-green);
+    font-weight: 800;
+}
+
+.history-content {
+    margin-bottom: 8px;
+    white-space: pre-wrap;
+}
+
+.history-note {
+    margin: 0;
+    color: var(--fitmate-muted);
+    white-space: pre-wrap;
+}
+
+/* 空状态用于展示无记录或接口异常，避免页面看起来像卡住了。 */
+.empty-state {
+    min-height: 160px;
+    padding: 28px;
+    text-align: center;
+    border: 1px dashed var(--fitmate-line);
+    border-radius: 8px;
+}
+
+.empty-state h3 {
+    font-size: 1.1rem;
+    font-weight: 800;
+}
+
+.empty-state p {
+    margin-bottom: 0;
+    color: var(--fitmate-muted);
+}
+
+@media (max-width: 991.98px) {
+    .stats-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+/* 手机端改为单列，让表单和历史记录都有足够宽度。 */
+@media (max-width: 575.98px) {
+    .record-hero__content {
+        min-height: 190px;
+        padding-top: 28px;
+    }
+
+    .record-main {
+        margin-top: -24px;
+        padding-bottom: 36px;
+    }
+
+    .stats-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .record-panel {
+        padding: 18px;
+    }
+
+    .section-heading--row,
+    .history-item__top {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .history-duration {
+        align-self: flex-start;
+    }
+}
