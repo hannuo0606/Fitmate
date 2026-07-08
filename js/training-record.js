@@ -36,6 +36,7 @@
         }
 
         trainingDate.value = getToday();
+        trainingDate.max = getToday();
         form.addEventListener('submit', handleSubmit);
         refreshBtn.addEventListener('click', () => {
             hideAlert();
@@ -237,6 +238,12 @@
             isValid = false;
         }
 
+        if (trainingDate.value && isFutureDate(trainingDate.value)) {
+            trainingDate.classList.add('is-invalid');
+            showAlert('warning', '不能提交未来日期的训练记录。');
+            isValid = false;
+        }
+
         if (!trainingContent.value.trim()) {
             trainingContent.classList.add('is-invalid');
             isValid = false;
@@ -430,6 +437,10 @@
         const month = String(now.getMonth() + 1).padStart(2, '0');
         const day = String(now.getDate()).padStart(2, '0');
         return `${year}-${month}-${day}`;
+    }
+
+    function isFutureDate(value) {
+        return /^\d{4}-\d{2}-\d{2}$/.test(value) && value > getToday();
     }
 
     function formatDate(value) {

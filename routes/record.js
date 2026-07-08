@@ -94,6 +94,15 @@ function calculateStreak(dateSet) {
     return streak;
 }
 
+// 获取服务器本地日期字符串，格式为 YYYY-MM-DD。
+function getTodayString() {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+}
+
 // ============================================
 // POST /api/record — 提交训练打卡
 // ============================================
@@ -108,16 +117,23 @@ router.post('/', async (req, res) => {
             note
         } = req.body;
 
-        // 1. 校验必填字段：训练内容不能为空
+        // 1. 训练日期默认为今天，且不能提交未来日期
+        const recordDate = training_date || getTodayString();
+
+        if (recordDate > getTodayString()) {
+            return res.status(400).json({
+                success: false,
+                message: '不能提交未来日期的训练记录'
+            });
+        }
+
+        // 2. 校验必填字段：训练内容不能为空
         if (!training_content || training_content.trim() === '') {
             return res.status(400).json({
                 success: false,
                 message: '训练内容不能为空'
             });
         }
-
-        // 2. 训练日期默认为今天
-        const recordDate = training_date || new Date().toISOString().split('T')[0];
 
         // 3. 检查该日期是否已打卡（手动查询，给出友好提示）
         const [existing] = await pool.query(
