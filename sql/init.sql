@@ -2,6 +2,20 @@
 -- Fitmate 训练打卡模块 - 数据库初始化脚本
 -- ============================================
 
+-- 创建 user 表（最小用户表，供训练打卡外键引用）
+CREATE TABLE IF NOT EXISTS `user` (
+    -- 主键，自增 ID
+    `id` INT NOT NULL AUTO_INCREMENT,
+    -- 用户名
+    `username` VARCHAR(50) NOT NULL,
+    -- 密码（课程演示最小字段，实际项目应存储加密后的密码）
+    `password` VARCHAR(255) NOT NULL,
+    -- 记录创建时间
+    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    -- 主键
+    PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='用户表';
+
 -- 创建 training_record 表（训练打卡记录表）
 CREATE TABLE IF NOT EXISTS `training_record` (
     -- 主键，自增 ID
