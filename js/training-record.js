@@ -1,6 +1,9 @@
 (function () {
     const API_BASE = getApiBase();
     const HISTORY_PAGE_SIZE = 10;
+    const LOGIN_PAGE = 'login.html';
+
+    let isRedirectingToLogin = false;
 
     const form = document.getElementById('recordForm');
     const submitBtn = document.getElementById('submitBtn');
@@ -15,6 +18,7 @@
     const trainingDate = document.getElementById('trainingDate');
     const trainingContent = document.getElementById('trainingContent');
     const trainingDuration = document.getElementById('trainingDuration');
+    const caloriesBurned = document.getElementById('caloriesBurned');
     const trainingNote = document.getElementById('trainingNote');
 
     const statEls = {
@@ -27,23 +31,34 @@
     document.addEventListener('DOMContentLoaded', initPage);
 
     function initPage() {
+        if (!form) {
+            return;
+        }
+
         trainingDate.value = getToday();
         form.addEventListener('submit', handleSubmit);
         refreshBtn.addEventListener('click', () => {
             hideAlert();
             refreshPageData();
         });
+
+        // 页面加载时先检查 token，没有 token 就提示并跳转登录页。
+        if (!getToken()) {
+            handleUnauthorized('未检测到登录 token，请先登录后再进行训练打卡。');
+            return;
+        }
+
         refreshPageData();
     }
 
     function getApiBase() {
-        const customBase = readLocalStorage('fitmateApiBase');
+        const customBase = readStorageValue('fitmateApiBase');
 
         if (customBase) {
             return customBase.replace(/\/$/, '');
         }
 
-        // 直接打开 HTML 文件演示时，默认请求本机 Express 服务。
+        // 直接双击打开 HTML 演示时，默认请求本机 Express 服务。
         if (window.location.protocol === 'file:') {
             return 'http://localhost:3000/api/record';
         }
@@ -52,10 +67,10 @@
     }
 
     function getToken() {
-        const tokenKeys = ['token', 'jwtToken', 'authToken', 'fitmate_token'];
+        const tokenKeys = ['token', 'authToken', 'jwt', 'jwtToken', 'fitmate_token'];
 
         for (const key of tokenKeys) {
-            const value = readLocalStorage(key);
+            const value = readStorageValue(key);
             if (value) {
                 return normalizeToken(value);
             }
@@ -64,18 +79,40 @@
         return '';
     }
 
-    function readLocalStorage(key) {
+    function readStorageValue(key) {
+        // 兼容 localStorage 和 sessionStorage，但不新增登录状态。
+        const storages = [];
+
         try {
-            return localStorage.getItem(key);
+            storages.push(window.localStorage);
         } catch (error) {
-            return '';
+            // localStorage 不可用时继续尝试 sessionStorage。
         }
+
+        try {
+            storages.push(window.sessionStorage);
+        } catch (error) {
+            // sessionStorage 不可用时返回空值。
+        }
+
+        for (const storage of storages) {
+            try {
+                const value = storage.getItem(key);
+                if (value) {
+                    return value;
+                }
+            } catch (error) {
+                // 某些浏览器隐私模式可能禁用 storage，直接忽略。
+            }
+        }
+
+        return '';
     }
 
     function normalizeToken(value) {
         const token = value.trim();
 
-        // 有些登录页会把完整的 "Bearer xxx" 存进 localStorage，这里统一去掉前缀。
+        // 有些登录页会保存完整的 "Bearer xxx"，这里统一去掉前缀。
         if (token.toLowerCase().startsWith('bearer ')) {
             return token.slice(7).trim();
         }
@@ -87,7 +124,8 @@
         const token = getToken();
 
         if (!token) {
-            throw new Error('未检测到登录 token，请先登录后再进行训练打卡。');
+            handleUnauthorized('未检测到登录 token，请先登录后再进行训练打卡。');
+            throw createRequestError('未检测到登录 token，请先登录后再进行训练打卡。', 401);
         }
 
         let response;
@@ -102,16 +140,28 @@
                 }
             });
         } catch (error) {
-            throw new Error('无法连接后端接口，请确认后端服务已启动，且接口地址正确。');
+            throw createRequestError('无法连接后端接口，请确认后端服务已启动，且接口地址正确。');
         }
 
         const data = await readJsonSafely(response);
 
+        if (response.status === 401) {
+            const message = data.message || '登录已过期，请重新登录。';
+            handleUnauthorized(message);
+            throw createRequestError(message, 401);
+        }
+
         if (!response.ok || data.success === false) {
-            throw new Error(data.message || '接口请求失败，请稍后再试。');
+            throw createRequestError(getFriendlyApiMessage(data.message, response.status), response.status);
         }
 
         return data;
+    }
+
+    function createRequestError(message, status) {
+        const error = new Error(message);
+        error.status = status;
+        return error;
     }
 
     async function readJsonSafely(response) {
@@ -125,11 +175,20 @@
         }
     }
 
+    function getFriendlyApiMessage(message = '', status) {
+        if (status === 409 || /已经.*打卡|重复|唯一|ER_DUP_ENTRY/i.test(message)) {
+            return '今天已经打卡过了，请不要重复提交。';
+        }
+
+        return message || '接口请求失败，请稍后再试。';
+    }
+
     async function handleSubmit(event) {
         event.preventDefault();
         hideAlert();
 
         if (!validateForm()) {
+            showAlert('warning', '请先检查表单内容，再提交打卡。');
             return;
         }
 
@@ -138,32 +197,45 @@
         try {
             await requestJson(API_BASE, {
                 method: 'POST',
-                body: JSON.stringify({
-                    training_date: trainingDate.value || getToday(),
-                    training_content: trainingContent.value.trim(),
-                    training_duration: Number(trainingDuration.value),
-                    note: trainingNote.value.trim() || null
-                })
+                body: JSON.stringify(buildPayload())
             });
 
-            showAlert('success', '打卡成功，历史记录已刷新。');
-            form.reset();
-            trainingDate.value = getToday();
-            form.classList.remove('was-validated');
+            showAlert('success', '打卡成功，历史记录和统计数据已刷新。');
+            clearFormAfterSubmit();
             await refreshPageData();
         } catch (error) {
-            showAlert('danger', error.message);
+            if (error.status !== 401) {
+                showAlert('danger', error.message);
+            }
         } finally {
             setSubmitLoading(false);
         }
     }
 
+    function buildPayload() {
+        const caloriesValue = caloriesBurned.value.trim();
+
+        return {
+            training_date: trainingDate.value,
+            training_content: trainingContent.value.trim(),
+            training_duration: Number(trainingDuration.value),
+            calories_burned: caloriesValue === '' ? null : Number(caloriesValue),
+            note: trainingNote.value.trim() || null
+        };
+    }
+
     function validateForm() {
         let isValid = true;
         const duration = Number(trainingDuration.value);
+        const caloriesValue = caloriesBurned.value.trim();
+        const calories = Number(caloriesValue);
 
-        trainingContent.classList.remove('is-invalid');
-        trainingDuration.classList.remove('is-invalid');
+        clearInvalidState();
+
+        if (!trainingDate.value) {
+            trainingDate.classList.add('is-invalid');
+            isValid = false;
+        }
 
         if (!trainingContent.value.trim()) {
             trainingContent.classList.add('is-invalid');
@@ -175,33 +247,27 @@
             isValid = false;
         }
 
+        if (caloriesValue !== '' && (!Number.isFinite(calories) || calories < 0)) {
+            caloriesBurned.classList.add('is-invalid');
+            isValid = false;
+        }
+
         form.classList.add('was-validated');
         return isValid;
     }
 
-    async function refreshPageData() {
-        await Promise.allSettled([
-            loadStats(),
-            loadHistory()
-        ]);
+    function clearInvalidState() {
+        [trainingDate, trainingContent, trainingDuration, caloriesBurned].forEach((field) => {
+            field.classList.remove('is-invalid');
+        });
     }
 
-    async function loadStats() {
-        try {
-            const result = await requestJson(`${API_BASE}/stats`);
-            const stats = result.data || {};
-
-            statEls.streak.textContent = formatNumber(stats.streak);
-            statEls.weekly.textContent = formatNumber(stats.weekly);
-            statEls.monthly.textContent = formatNumber(stats.monthly);
-            statEls.total.textContent = formatNumber(stats.total);
-        } catch (error) {
-            statEls.streak.textContent = '--';
-            statEls.weekly.textContent = '--';
-            statEls.monthly.textContent = '--';
-            statEls.total.textContent = '--';
-            showAlert('warning', error.message);
-        }
+    async function refreshPageData() {
+        await Promise.allSettled([
+            loadHistory(),
+            loadStreak(),
+            loadStats()
+        ]);
     }
 
     async function loadHistory() {
@@ -210,18 +276,59 @@
         try {
             const result = await requestJson(`${API_BASE}/history?page=1&pageSize=${HISTORY_PAGE_SIZE}`);
             const records = Array.isArray(result.data) ? result.data : [];
+            const total = Number(result.total) || 0;
 
             renderHistory(records);
-            historySummary.textContent = result.total > 0
-                ? `共 ${result.total} 条记录，当前展示最近 ${records.length} 条。`
-                : '暂无历史记录。';
+            historySummary.textContent = total > 0
+                ? `共 ${total} 条记录，当前展示最近 ${records.length} 条。`
+                : '暂无训练记录。';
         } catch (error) {
-            historyList.innerHTML = '';
-            showEmptyState('历史记录加载失败', '请确认已经登录，并且后端服务正在运行。');
-            historySummary.textContent = '历史记录加载失败。';
-            showAlert('danger', error.message);
+            if (error.status !== 401) {
+                historyList.innerHTML = '';
+                showEmptyState('历史记录加载失败', '请确认已经登录，并且后端服务正在运行。');
+                historySummary.textContent = '历史记录加载失败。';
+                showAlert('danger', error.message);
+            }
         } finally {
             setHistoryLoading(false);
+        }
+    }
+
+    async function loadStreak() {
+        try {
+            const result = await requestJson(`${API_BASE}/streak`);
+            statEls.streak.textContent = formatNumber(result.current_streak);
+
+            // 如果 stats 接口失败，streak 接口里的 total_days 可以作为累计次数兜底展示。
+            if (statEls.total.textContent === '--') {
+                statEls.total.textContent = formatNumber(result.total_days);
+            }
+        } catch (error) {
+            if (error.status !== 401) {
+                statEls.streak.textContent = '--';
+            }
+        }
+    }
+
+    async function loadStats() {
+        try {
+            const result = await requestJson(`${API_BASE}/stats`);
+            const stats = result.data || {};
+
+            statEls.weekly.textContent = formatNumber(stats.weekly);
+            statEls.monthly.textContent = formatNumber(stats.monthly);
+            statEls.total.textContent = formatNumber(stats.total);
+
+            if (stats.streak !== undefined) {
+                statEls.streak.textContent = formatNumber(stats.streak);
+            }
+        } catch (error) {
+            if (error.status !== 401) {
+                statEls.weekly.textContent = '--';
+                statEls.monthly.textContent = '--';
+                statEls.total.textContent = '--';
+                showAlert('warning', error.message);
+            }
         }
     }
 
@@ -229,7 +336,7 @@
         historyList.innerHTML = '';
 
         if (records.length === 0) {
-            showEmptyState('还没有训练记录', '完成第一次训练后，就可以在这里看到历史打卡。');
+            showEmptyState('暂无训练记录', '完成第一次训练后，就可以在这里看到历史打卡。');
             return;
         }
 
@@ -238,11 +345,16 @@
 
         records.forEach((record) => {
             const item = document.createElement('article');
+            const caloriesText = formatCalories(record.calories_burned);
+
             item.className = 'history-item';
             item.innerHTML = `
                 <div class="history-item__top">
                     <span class="history-date">${escapeHtml(formatDate(record.training_date))}</span>
-                    <span class="history-duration">${escapeHtml(formatDuration(record.training_duration))}</span>
+                </div>
+                <div class="history-meta">
+                    <span class="history-meta__item">${escapeHtml(formatDuration(record.training_duration))}</span>
+                    ${caloriesText ? `<span class="history-meta__item">${escapeHtml(caloriesText)}</span>` : ''}
                 </div>
                 <div class="history-content">${escapeHtml(record.training_content || '未填写训练内容')}</div>
                 ${record.note ? `<p class="history-note">${escapeHtml(record.note)}</p>` : ''}
@@ -259,14 +371,47 @@
         emptyState.classList.remove('d-none');
     }
 
+    function clearFormAfterSubmit() {
+        const currentDate = trainingDate.value || getToday();
+
+        form.reset();
+        trainingDate.value = currentDate;
+        clearInvalidState();
+        form.classList.remove('was-validated');
+    }
+
+    function handleUnauthorized(message) {
+        showAlert('danger', `${message} 即将跳转到登录页面。`);
+        setHistoryLoading(false);
+        historySummary.textContent = '请先登录后查看训练记录。';
+        showEmptyState('请先登录', '登录后即可提交训练打卡并查看历史记录。');
+        disableForm();
+
+        if (isRedirectingToLogin) {
+            return;
+        }
+
+        isRedirectingToLogin = true;
+        window.setTimeout(() => {
+            window.location.href = LOGIN_PAGE;
+        }, 1200);
+    }
+
+    function disableForm() {
+        form.querySelectorAll('input, textarea, button').forEach((element) => {
+            element.disabled = true;
+        });
+        refreshBtn.disabled = true;
+    }
+
     function setSubmitLoading(isLoading) {
-        submitBtn.disabled = isLoading;
+        submitBtn.disabled = isLoading || isRedirectingToLogin;
         submitBtn.textContent = isLoading ? '提交中...' : '提交打卡';
     }
 
     function setHistoryLoading(isLoading) {
         historyLoading.classList.toggle('d-none', !isLoading);
-        refreshBtn.disabled = isLoading;
+        refreshBtn.disabled = isLoading || isRedirectingToLogin;
     }
 
     function showAlert(type, message) {
@@ -303,6 +448,15 @@
     function formatDuration(value) {
         const duration = Number(value);
         return Number.isFinite(duration) && duration > 0 ? `${duration} 分钟` : '未记录时长';
+    }
+
+    function formatCalories(value) {
+        if (value === null || value === undefined || value === '') {
+            return '';
+        }
+
+        const calories = Number(value);
+        return Number.isFinite(calories) && calories >= 0 ? `${calories} 千卡` : '';
     }
 
     function formatNumber(value) {
